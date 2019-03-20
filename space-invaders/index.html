@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Space Invaders HC Edition</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.16.2/dist/phaser.min.js"></script>
+    <style type="text/css">
+      html,
+      body {
+        padding: 0;
+        margin: 0;
+      }
+      canvas {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        margin: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+      var config = {
+        type: Phaser.AUTO,
+        parent: "game",
+        width: 800,
+        height: 600,
+        physics: {
+          default: "arcade",
+          debug: true,
+          gravity: { y: 0 }
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update
+        }
+      };
+
+      var enemy;
+      var background;
+      var bullets;
+      var bulletDelay = 0;
+      var explosions;
+      var cursors;
+      var invaders;
+      var invaders_tween;
+      var player;
+      var text_count;
+      var score = 0;
+      var scoreText;
+
+      var game = new Phaser.Game(config);
+
+      function preload() {
+        this.load.image("space", "assets/space/bg.png");
+        this.load.image("player", "assets/space/player.png");
+        this.load.image("laser", "assets/space/laser.png");
+        this.load.image("enemy", "assets/space/enemy.png");
+        this.load.spritesheet("invader", "assets/space/invader.png", {
+          frameWidth: 48,
+          frameHeight: 32
+        });
+        this.load.spritesheet("explosion", "assets/space/explode.png", {
+          frameWidth: 128,
+          frameHeight: 128
+        });
+      }
+
+      function create() {
+        //Set up the playing field + controls
+        background = this.add.tileSprite(0, 0, 800, 600, "space").setOrigin(0);
+        cursors = this.input.keyboard.createCursorKeys();
+
+        //Set up the player
+        player = this.physics.add.sprite(400, 550, "player").setScale(0.5);
+        player.setCollideWorldBounds(true);
+
+        //Create bullets
+        bullets = this.physics.add.group({
+          defaultKey: "laser"
+        });
+
+        //Create and animate the invaders
+        var invaderFloatAnim = this.anims.create({
+          key: "float",
+          frames: this.anims.generateFrameNumbers("invader"),
+          frameRate: 1,
+          repeat: -1
+        });
+
+        invaders = this.physics.add.group({
+          key: "invader",
+          frame: 0,
+          repeat: 39
+        });
+
+        invaders.playAnimation('float');
+
+        Phaser.Actions.GridAlign(invaders.getChildren(), {
+          width: 8,
+          cellWidth: 62,
+          cellHeight: 52,
+          x: 80,
+          y: 100
+        });
+
+        //Create the explosions for hitting enemies or enemy's bullets
+        explosions = this.physics.add.staticGroup({
+          defaultKey: 'explosion'
+        });
+
+        var explosionAnim = this.anims.create({
+          key: 'explode',
+          frames: this.anims.generateFrameNumbers('explosion'),
+          frameRate: 30,
+          repeat: 0
+        });
+
+        //Set up the collisin of bullets and invaders
+        this.physics.add.collider(bullets, invaders, hitInvader, null, this);
+
+        //Create text for the scoreboard 
+        text_count = this.add.text(15, 15, 'Invaders: 40', {font: '16px Courier', fill: '#ffffff'});
+        scoreText = this.add.text((this.cameras.main._width - 150), 15, 'Score: ' + score, {font: '20px Courier', fill: '#ffffff'});
+
+        // Animate the group of invaders to float left and right
+        var tweens = this.tweens.add({
+          targets: invaders.getChildren(),
+          x: '+=200',
+          duration: 4000,
+          yoyo: true,
+          repeat: -1
+        });
+
+        var timer = this.time.addEvent({
+          delay: 10000,
+          callback: descend,
+          repeat: -1
+        });
+
+      }
+
+      function descend(tween, target){
+        invaders.getChildren().forEach(function(invader){
+          invader.y = invader.y + 15;
+        })
+      }
+
+      function update() {
+        //  Scroll the background
+        background.tilePositionY -= 5;
+
+        // Update text enzo
+        text_count.setText('Invaders: ' + invaders.getLength());
+        scoreText.setText('Score: ' + score);
+
+        // Controls for movement
+        if (cursors.left.isDown) {
+          player.setVelocityX(-200);
+        } else if (cursors.right.isDown) {
+          player.setVelocityX(200);
+        } else {
+          player.setVelocityX(0);
+        }
+
+        // Controls for shooting
+        if (cursors.space.isDown) {
+          if (bulletDelay < this.time.now) {
+            fireBullet();
+            bulletDelay = this.time.now + 350;
+          }
+        }
+      }
+
+      function fireBullet() {
+        var bullet = bullets.create(player.x, player.y);
+        bullet.body.onWorldBounds = true;
+
+        bullet.body.world.on('worldBounds', function(body) {
+          if(body.gameObject === this){
+            this.setActive = false;
+            this.setVisible = false;
+          }
+        }, bullet);
+
+        if (bullet) {
+          bullet.setVelocityY(-500);
+        }
+      }
+
+      function hitInvader(bullet, invader) {
+        bullet.disableBody(false, true);
+        explode(invader);
+        invader.destroy();
+        score += 100;
+      }
+
+      function explode(item){
+        let explosion = explosions.create(item.x, item.y);
+        explosion.play('explode');
+        explosion.on('animationcomplete', function(anim, frame){
+          explosion.destroy();
+        });
+      }
+    </script>
+  </body>
+</html>
